@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Breathing Timer</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="stage" aria-labelledby="app-title">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Meditation timer</p>
+            <h1 id="app-title">Breathing Timer</h1>
+          </div>
+          <div class="view-switch" role="tablist" aria-label="View">
+            <button class="view-button active" type="button" data-view="circle" role="tab" aria-selected="true">Circle</button>
+            <button class="view-button" type="button" data-view="wave" role="tab" aria-selected="false">Wave</button>
+            <button class="view-button" type="button" data-view="dashboard" role="tab" aria-selected="false">Dashboard</button>
+          </div>
+        </header>
+
+        <section class="circle-view active" data-panel="circle" aria-label="Breathing circle">
+          <div class="breath-area">
+            <div class="orb-wrap" aria-live="polite">
+              <div class="breath-orb" id="breath-orb">
+                <div class="orb-core">
+                  <span id="phase-label">Ready</span>
+                  <strong id="phase-time">5.0</strong>
+                  <small id="phase-helper">Press start</small>
+                </div>
+              </div>
+              <div class="orbit-ring"></div>
+            </div>
+
+            <div class="session-readout">
+              <span>Session</span>
+              <strong id="session-time">Continuous</strong>
+              <span class="session-elapsed" id="session-elapsed">0:00 elapsed</span>
+            </div>
+          </div>
+
+          <div class="transport">
+            <button class="primary-button" id="start-stop" type="button">Start</button>
+            <button class="ghost-button" id="reset" type="button">Reset</button>
+          </div>
+        </section>
+
+        <section class="wave-view" data-panel="wave" aria-label="Breathing wave">
+          <div class="wave-stage">
+            <canvas id="wave-canvas" width="920" height="420" aria-hidden="true"></canvas>
+            <div class="wave-readout" aria-live="polite">
+              <span id="wave-phase">Ready</span>
+              <strong id="wave-time">5.0</strong>
+              <small id="wave-helper">Press start</small>
+            </div>
+          </div>
+          <div class="wave-footer">
+            <div class="session-readout">
+              <span>Session</span>
+              <strong id="wave-session-time">Continuous</strong>
+              <span class="session-elapsed" id="wave-session-elapsed">0:00 elapsed</span>
+            </div>
+            <div class="transport">
+              <button class="primary-button" id="wave-start-stop" type="button">Start</button>
+              <button class="ghost-button" id="wave-reset" type="button">Reset</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="dashboard-view" data-panel="dashboard" aria-label="Dashboard">
+          <div class="dashboard-grid">
+            <div class="metric">
+              <span>Current phase</span>
+              <strong id="dash-phase">Ready</strong>
+            </div>
+            <div class="metric">
+              <span>Cycle length</span>
+              <strong id="cycle-length">10.0s</strong>
+            </div>
+            <div class="metric">
+              <span>Session left</span>
+              <strong id="dash-session">Continuous</strong>
+            </div>
+            <div class="metric">
+              <span>Breaths</span>
+              <strong id="breath-count">0</strong>
+            </div>
+          </div>
+          <div class="dashboard-actions">
+            <button class="primary-button" id="dash-start-stop" type="button">Start</button>
+            <button class="ghost-button" id="dash-reset" type="button">Reset</button>
+          </div>
+        </section>
+      </section>
+
+      <aside class="controls" aria-label="Timer settings">
+        <section class="control-section">
+          <div class="section-heading">
+            <h2>Breath</h2>
+            <span id="breath-summary">5.0 / 0.0 / 5.0s</span>
+          </div>
+
+          <label class="slider-row">
+            <span>In</span>
+            <input id="inhale" type="range" min="3" max="7" step="0.1" value="5">
+            <output id="inhale-value">5.0s</output>
+          </label>
+
+          <label class="slider-row">
+            <span>Pause</span>
+            <input id="pause" type="range" min="0" max="2" step="0.1" value="0">
+            <output id="pause-value">0.0s</output>
+          </label>
+
+          <label class="slider-row">
+            <span>Out</span>
+            <input id="exhale" type="range" min="3" max="7" step="0.1" value="5">
+            <output id="exhale-value">5.0s</output>
+          </label>
+        </section>
+
+        <section class="control-section">
+          <div class="section-heading">
+            <h2>Session</h2>
+            <span id="session-summary">Continuous</span>
+          </div>
+
+          <div class="segmented" role="group" aria-label="Session length presets">
+            <button class="segment active" type="button" data-session="continuous">Continuous</button>
+            <button class="segment" type="button" data-session="5">5 min</button>
+            <button class="segment" type="button" data-session="10">10 min</button>
+            <button class="segment" type="button" data-session="20">20 min</button>
+          </div>
+
+          <label class="slider-row">
+            <span>Minutes</span>
+            <input id="session-minutes" type="range" min="3" max="40" step="1" value="10">
+            <output id="session-minutes-value">10 min</output>
+          </label>
+        </section>
+
+        <section class="control-section">
+          <div class="section-heading">
+            <h2>Sound</h2>
+            <button class="text-button" id="preview-sound" type="button">Preview</button>
+          </div>
+
+          <label class="select-row">
+            <span>In sound</span>
+            <select id="inhale-sound"></select>
+          </label>
+
+          <label class="select-row">
+            <span>Out sound</span>
+            <select id="exhale-sound"></select>
+          </label>
+
+          <label class="select-row">
+            <span>Pause sound</span>
+            <select id="pause-sound"></select>
+          </label>
+
+          <label class="select-row">
+            <span>Shape</span>
+            <select id="sound-shape">
+              <option value="fade-out">Louder to quieter</option>
+              <option value="swell">Soft to loud to soft</option>
+              <option value="constant">Constant</option>
+            </select>
+          </label>
+
+          <label class="slider-row">
+            <span>Volume</span>
+            <input id="volume" type="range" min="0" max="1" step="0.01" value="0.45">
+            <output id="volume-value">45%</output>
+          </label>
+        </section>
+      </aside>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
