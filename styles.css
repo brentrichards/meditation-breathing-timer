@@ -362,13 +362,13 @@ select {
   outline: 2px solid var(--ink);
 }
 [data-palette="sea"] {
-  background: #428e7f !important;
+  background: linear-gradient(135deg, #007a33 50%, #ffcd00 50%) !important;
 }
 [data-palette="rose"] {
-  background: #b26583 !important;
+  background: #e34234 !important;
 }
 [data-palette="blue"] {
-  background: #4d88b0 !important;
+  background: #1456c0 !important;
 }
 @media (max-width: 720px) {
   .app {

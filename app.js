@@ -97,9 +97,9 @@ const sounds = [
   },
 ];
 const palettes = {
-  sea: ["#287d71", "#7bc8ac", "#e5b879"],
-  rose: ["#a8567d", "#d5a2bd", "#81afa2"],
-  blue: ["#467da9", "#8abdd1", "#cfab81"],
+  sea: ["#007a33", "#39b85a", "#ffcd00"],
+  rose: ["#b52228", "#ff7466", "#e34234"],
+  blue: ["#1456c0", "#65c7ff", "#082d85"],
 };
 let settings = { ...defaults };
 try {
@@ -549,7 +549,7 @@ function draw() {
       ctx.save();
       ctx.rotate((i * Math.PI) / 4);
       ctx.fillStyle = colors[i % 3];
-      ctx.globalAlpha = settings.theme === "dim" ? 0.48 : 0.25;
+      ctx.globalAlpha = settings.theme === "dim" ? 0.65 : 0.45;
       ctx.beginPath();
       ctx.ellipse(
         0,

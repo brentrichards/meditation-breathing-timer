@@ -33,7 +33,7 @@ folder, and double-click index.html. Keep audio/ and icons/ with the HTML, CSS, 
   Resume manually when returning.
 - Settings slides over the session and closes on Start.
 - Circle, Wave, Petal, and Dashboard share one session.
-- Sea green, rose, and blue palettes; light and dim backgrounds.
+- Australian green and gold, vivid blue shades, and warm red palettes; light and dim backgrounds.
 - Phase words appear above the graphic. The optional smaller countdown offers
   0.1, 0.2, 0.5, or 1-second display steps. It defaults to hidden and a 1-second step.
   Display rounding never changes actual breathing timing.
