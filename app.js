@@ -678,9 +678,9 @@ function draw() {
     ctx.stroke();
     ctx.globalAlpha = 1;
     const gradient = ctx.createRadialGradient(
-      centerX - size * 0.25,
-      centerY - size * 0.3,
-      size * 0.08,
+      centerX,
+      centerY,
+      0,
       centerX,
       centerY,
       size,
