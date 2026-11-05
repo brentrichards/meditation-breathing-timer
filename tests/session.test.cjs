@@ -5,13 +5,15 @@ let now = 0;
 const elements = new Map();
 const documentEvents = {};
 const sources = [];
+const drawingLog = [];
+let scheduledFrames = 0;
 const drawing = new Proxy(
   {},
   {
     get: (_, name) =>
       name === "createRadialGradient" || name === "createLinearGradient"
         ? () => ({ addColorStop() {} })
-        : () => {},
+        : (...args) => drawingLog.push([name, ...args]),
   },
 );
 function element(id) {
@@ -34,7 +36,10 @@ function element(id) {
         },
       },
       setAttribute() {},
-      addEventListener() {},
+      events: {},
+      addEventListener(name, fn) {
+        this.events[name] = fn;
+      },
       focus() {},
       add() {},
       querySelectorAll() {
@@ -139,7 +144,7 @@ const context = vm.createContext({
   },
   setInterval: () => 1,
   clearInterval() {},
-  requestAnimationFrame: () => 1,
+  requestAnimationFrame: () => ++scheduledFrames,
   cancelAnimationFrame() {},
   fetch: async () => ({
     ok: true,
@@ -152,6 +157,66 @@ vm.runInContext(
 );
 const run = (code) => vm.runInContext(code, context);
 async function main() {
+  assert.equal(element("breath-timer").hidden, false);
+  const sourceCode = fs.readFileSync(
+    require("node:path").join(__dirname, "../app.js"),
+    "utf8",
+  );
+  const originalVisibilityHandler = documentEvents.visibilitychange;
+  const originalInputs = new Map(
+    Array.from(elements, ([id, node]) => [id, { ...node.events }]),
+  );
+  for (const version of [undefined, 3]) {
+    const migration = vm.createContext({
+      ...context,
+      window: { ...context.window, matchMedia: () => ({ matches: true }) },
+      localStorage: {
+        getItem: () =>
+          JSON.stringify({
+            showTimer: false,
+            reducedMotion: true,
+            displayVersion: version,
+          }),
+        setItem() {},
+      },
+    });
+    vm.runInContext(sourceCode, migration);
+    assert.equal(
+      vm.runInContext("settings.showTimer", migration),
+      version !== 3,
+    );
+    assert.equal(vm.runInContext("settings.reducedMotion", migration), true);
+  }
+  documentEvents.visibilitychange = originalVisibilityHandler;
+  originalInputs.forEach((events, id) => {
+    element(id).events = events;
+  });
+  run("settings.showTimer = false");
+  element("timer-step").value = "0.5";
+  element("timer-step").events.input();
+  assert.equal(element("breath-timer").hidden, false);
+  run("settings.timerStep = 1; settings.reducedMotion = true");
+  await run("start()");
+  assert.ok(
+    scheduledFrames > 0,
+    "Gentler motion must schedule animation frames",
+  );
+  for (const view of ["circle", "wave", "petal"]) {
+    now = 0;
+    run("settings.view = " + JSON.stringify(view) + "; draw()");
+    const before = JSON.stringify(drawingLog.splice(0));
+    now = 2500;
+    run("draw()");
+    assert.notEqual(
+      JSON.stringify(drawingLog.splice(0)),
+      before,
+      view + " must move with reduced motion enabled",
+    );
+  }
+  run("reset(); settings.reducedMotion = false");
+  now = 0;
+  assert.ok(run("sounds.find(s => s.id === 'stream').q") < 0.5);
+  assert.ok(run("sounds.find(s => s.id === 'stream').driftRate") < 0.1);
   assert.equal(run("locate(0).phase"), "inhale");
   assert.equal(run("locate(5).phase"), "exhale");
   run("settings.pause = 1.2");

@@ -35,11 +35,12 @@ folder, and double-click index.html. Keep audio/ and icons/ with the HTML, CSS, 
 - Circle, Wave, Petal, and Dashboard share one session.
 - Australian green and gold, vivid blue shades, and warm red palettes; light and dim backgrounds.
 - Phase words appear above the graphic. The optional smaller countdown offers
-  0.1, 0.2, 0.5, or 1-second display steps. It defaults to hidden and a 1-second step.
+  0.1, 0.2, 0.5, or 1-second display steps. It defaults to visible and a 1-second step.
   Display rounding never changes actual breathing timing.
 - The elapsed/remaining session readout can be hidden.
-- Reduced motion follows the device preference on first use and can be changed.
-  It keeps the graphic still while phase labels/countdowns continue updating.
+- Gentler breathing motion follows the device's reduced-motion preference on
+  first use and can be changed. It reduces the movement amplitude while keeping
+  the breathing animation active.
 - Preferences are remembered in browser storage when available.
 
 ## Audio

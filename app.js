@@ -16,7 +16,7 @@ const defaults = {
   view: "circle",
   palette: "sea",
   theme: "light",
-  showTimer: false,
+  showTimer: true,
   timerStep: 1,
   showSession: true,
   reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -66,7 +66,15 @@ const sounds = [
     q: 1.8,
   },
   { id: "breath", name: "Soft air", family: "noise", cutoff: 1600, q: 0.7 },
-  { id: "stream", name: "Stream murmur", family: "noise", cutoff: 1900, q: 3 },
+  {
+    id: "stream",
+    name: "Soft flowing water",
+    family: "noise",
+    cutoff: 950,
+    q: 0.35,
+    driftRate: 0.07,
+    driftDepth: 0.025,
+  },
   {
     id: "flute",
     name: "Bamboo flute",
@@ -109,6 +117,8 @@ try {
   Object.keys(defaults).forEach((key) => {
     if (typeof saved[key] === typeof defaults[key]) settings[key] = saved[key];
   });
+  // Reveal the previously hidden countdown once, preserving later user choices.
+  if (saved.displayVersion !== 3) settings.showTimer = true;
 } catch (_) {
   /* Storage may be unavailable in private browsing. */
 }
@@ -149,7 +159,10 @@ const ctx = $("visual").getContext("2d");
 
 function persist() {
   try {
-    localStorage.setItem("breathing-settings-v2", JSON.stringify(settings));
+    localStorage.setItem(
+      "breathing-settings-v2",
+      JSON.stringify({ ...settings, displayVersion: 3 }),
+    );
   } catch (_) {}
 }
 function elapsed() {
@@ -231,17 +244,26 @@ function stopVoices(group) {
 }
 function noiseBuffer() {
   if (noiseBuffers.has("pink")) return noiseBuffers.get("pink");
-  const buffer = audio.createBuffer(1, audio.sampleRate * 4, audio.sampleRate);
+  const length = audio.sampleRate * 4;
+  const overlap = Math.max(1, Math.floor(audio.sampleRate * 0.12));
+  const raw = new Float32Array(length + overlap);
+  const buffer = audio.createBuffer(1, length, audio.sampleRate);
   const data = buffer.getChannelData(0);
   let b0 = 0,
     b1 = 0,
     b2 = 0;
-  for (let i = 0; i < data.length; i++) {
+  for (let i = 0; i < raw.length; i++) {
     const w = Math.random() * 2 - 1;
     b0 = 0.99765 * b0 + w * 0.099046;
     b1 = 0.963 * b1 + w * 0.2965164;
     b2 = 0.57 * b2 + w * 1.0526913;
-    data[i] = (b0 + b1 + b2 + w * 0.1848) * 0.15;
+    raw[i] = (b0 + b1 + b2 + w * 0.1848) * 0.15;
+  }
+  // Crossfade the tail into the opening to avoid clicks at the loop boundary.
+  for (let i = 0; i < length; i++) {
+    const blend = i < overlap ? (1 - Math.cos((i / overlap) * Math.PI)) / 2 : 1;
+    data[i] =
+      i < overlap ? raw[length + i] * (1 - blend) + raw[i] * blend : raw[i];
   }
   noiseBuffers.set("pink", buffer);
   return buffer;
@@ -340,8 +362,8 @@ async function playSound(phase, seconds, group = "session") {
     );
     const lfo = audio.createOscillator();
     const depth = audio.createGain();
-    lfo.frequency.value = sound.id === "stream" ? 4.3 : 0.19;
-    depth.gain.value = sound.cutoff * 0.12;
+    lfo.frequency.value = sound.driftRate || 0.19;
+    depth.gain.value = sound.cutoff * (sound.driftDepth || 0.12);
     lfo.connect(depth);
     depth.connect(filter.frequency);
     lfo.start(start);
@@ -508,12 +530,12 @@ function draw() {
   const radius = Math.min(w * 0.34, h * 0.37, 210);
   if (settings.view === "wave") {
     const pad = 25,
-      top = h * 0.18,
-      height = h * 0.64;
+      height = h * (settings.reducedMotion ? 0.24 : 0.64);
+    const waveTop = (h - height) / 2;
     const width = w - pad * 2,
       anchor = 0.43;
     // The curve and marker share the same eased breath function.
-    const offset = settings.reducedMotion ? 0 : seconds;
+    const offset = session.complete ? 0 : seconds;
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     const gradient = ctx.createLinearGradient(pad, 0, w - pad, 0);
@@ -525,24 +547,24 @@ function draw() {
     for (let i = 0; i <= 260; i++) {
       const x = pad + (width * i) / 260;
       const value = levelAt(offset + (i / 260 - anchor) * duration() * 1.7);
-      const y = top + (1 - value) * height;
+      const y = waveTop + (1 - value) * height;
       if (!i) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
     ctx.stroke();
-    const marker = settings.reducedMotion ? levelAt(0) : level;
+    const marker = level;
     ctx.fillStyle = colors[0];
     ctx.beginPath();
     ctx.arc(
       pad + width * anchor,
-      top + (1 - marker) * height,
+      waveTop + (1 - marker) * height,
       8,
       0,
       Math.PI * 2,
     );
     ctx.fill();
   } else if (settings.view === "petal") {
-    const expansion = settings.reducedMotion ? 0.55 : level;
+    const expansion = settings.reducedMotion ? 0.4 + level * 0.25 : level;
     ctx.save();
     ctx.translate(centerX, centerY);
     for (let i = 0; i < 8; i++) {
@@ -570,7 +592,9 @@ function draw() {
     ctx.fill();
     ctx.restore();
   } else {
-    const size = radius * (settings.reducedMotion ? 0.78 : 0.62 + level * 0.3);
+    const size =
+      radius *
+      (settings.reducedMotion ? 0.72 + level * 0.1 : 0.62 + level * 0.3);
     ctx.strokeStyle = colors[1];
     ctx.globalAlpha = 0.3;
     ctx.lineWidth = 1.5;
@@ -606,12 +630,7 @@ function animate() {
   cancelAnimationFrame(animation);
   function frame() {
     draw();
-    if (
-      session.running &&
-      !settings.reducedMotion &&
-      settings.view !== "dashboard" &&
-      !document.hidden
-    )
+    if (session.running && settings.view !== "dashboard" && !document.hidden)
       animation = requestAnimationFrame(frame);
   }
   frame();
@@ -706,6 +725,10 @@ Object.entries(bindings).forEach(([id, key]) => {
           ? Number(control.value)
           : control.value;
     if (key === "sessionMinutes") settings.sessionMode = "timed";
+    if (key === "timerStep") {
+      settings.showTimer = true;
+      $("show-timer").checked = true;
+    }
     applySettings();
     if (key.endsWith("Sound")) {
       stopVoices("session");
