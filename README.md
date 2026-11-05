@@ -1,67 +1,68 @@
 # Meditation Breathing Timer
 
-A simple static web app for guided meditation breathing sessions. It includes a breathing circle, a wave visualization, configurable breath timing, session timing, and synthesized soothing audio cues.
+A static browser app for meditation. No build, package installation, account,
+or backend is required. It can be hosted directly on GitHub Pages.
 
-## Features
+## Run locally
 
-- Adjustable inhale time from 3.0 to 7.0 seconds
-- Adjustable pause time from 0.0 to 2.0 seconds
-- Adjustable exhale time from 3.0 to 7.0 seconds
-- Continuous sessions or timed sessions from 3 to 40 minutes
-- Quick session buttons for 5, 10, and 20 minutes
-- Circle, wave, and dashboard views
-- Selectable inhale, exhale, and pause sounds
-- Overall volume control
-- Sound envelope options
+Keep the whole folder together, including audio/ and icons/. Double-click index.html.
+Synthesized sounds and bundled recordings work offline; audio/samples.js
+provides local-file-compatible copies of the recordings.
 
-## Run Directly From This Directory
-
-This app does not require a build step or package install.
-
-Open `index.html` in a web browser.
-
-On Windows, you can usually double-click:
-
-```text
-index.html
-```
-
-Some browsers apply stricter rules when running directly from a local file. If anything behaves oddly, run it through a small local web server instead:
+Alternatively, open PowerShell in the project directory and run:
 
 ```powershell
 python -m http.server 8080 --bind 127.0.0.1
 ```
 
-Then open:
+Python is required only for this optional method. Open http://127.0.0.1:8080/
+and stop the server with Ctrl+C. Choose another port if 8080 is already in use.
 
-```text
-http://127.0.0.1:8080/index.html
+## Download to another computer
+
+In GitHub, select Code > Download ZIP. Extract the entire ZIP, open the extracted
+folder, and double-click index.html. Keep audio/ and icons/ with the HTML, CSS, and JS files.
+
+## Sessions and appearance
+
+- Inhale/exhale: 3-7 seconds; hold after inhale: 0-2 seconds; 0.1-second increments.
+- Continuous sessions or 3-40 minutes, with 5/10/20-minute presets.
+- Pause freezes position and elapsed time; Resume continues; Reset returns to zero.
+- Changing breath timing or session length resets the current session.
+- Switching tabs, minimizing, or locking the device pauses the session.
+  Resume manually when returning.
+- Settings slides over the session and closes on Start.
+- Circle, Wave, Petal, and Dashboard share one session.
+- Sea green, rose, and blue palettes; light and dim backgrounds.
+- Phase words appear above the graphic. The optional smaller countdown offers
+  0.1, 0.2, 0.5, or 1-second display steps. It defaults to hidden and a 1-second step.
+  Display rounding never changes actual breathing timing.
+- The elapsed/remaining session readout can be hidden.
+- Reduced motion follows the device preference on first use and can be changed.
+  It keeps the graphic still while phase labels/countdowns continue updating.
+- Preferences are remembered in browser storage when available.
+
+## Audio
+
+Choose separate inhale, hold, and exhale sounds, including Silence.
+Individual preview buttons stop any previous preview and pause running sessions.
+Choose sound throughout each breath or short cues; hold sound stays sustained.
+Volume and envelope shape are adjustable.
+
+Synthesized bowls, bell, flute, hum, drone, pulse, and air/water textures are
+joined by two treatments of a real bowl recording. Nature textures are synthesized
+interpretations, not field recordings. See [audio credits](AUDIO-CREDITS.md).
+Press Start or Preview to unlock browser audio.
+
+## Publish
+
+Commit and push all project files, including audio/ and icons/. In GitHub Settings > Pages,
+choose Deploy from a branch, main, / (root), and Save. No build is needed.
+
+## Regression checks
+
+With Node.js installed, run:
+
+```powershell
+node tests/session.test.cjs
 ```
-
-## Download And Run On Another Computer
-
-Download or copy the full project folder, keeping these files together:
-
-```text
-index.html
-styles.css
-app.js
-README.md
-```
-
-Then open `index.html` in a browser.
-
-If downloading from GitHub later:
-
-1. Open the GitHub repository page.
-2. Select `Code`.
-3. Select `Download ZIP`.
-4. Extract the ZIP file.
-5. Open the extracted folder.
-6. Double-click `index.html`.
-
-If audio does not start immediately, press `Start` or `Preview` once. Browsers require a user action before playing web audio.
-
-## Hosting
-
-Because the app is static HTML, CSS, and JavaScript, it can be hosted on GitHub Pages, Cloudflare Pages, Netlify, Vercel, or any static web server.

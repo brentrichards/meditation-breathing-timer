@@ -1,696 +1,789 @@
-const SOUND_PRESETS = [
-  { name: "Singing bowl", family: "bowl", base: 164.8, harmonics: [1, 2.01, 2.73, 3.98], noise: 0.012, filter: 1600 },
-  { name: "Deep temple bowl", family: "bowl", base: 123.5, harmonics: [1, 1.5, 2.02, 2.9], noise: 0.016, filter: 1200 },
-  { name: "Tingsha bell", family: "bell", base: 392, harmonics: [1, 2.01, 2.99, 4.2], noise: 0.006, filter: 2400 },
-  { name: "Bamboo breath", family: "air", base: 293.7, harmonics: [1, 1.99], noise: 0.16, filter: 1450 },
-  { name: "Ocean wash", family: "water", base: 98, harmonics: [1], noise: 0.34, filter: 820 },
-  { name: "Rain hush", family: "rain", base: 110, harmonics: [1], noise: 0.28, filter: 1750 },
-  { name: "Wind shimmer", family: "air", base: 246.9, harmonics: [1, 1.34, 2.01], noise: 0.18, filter: 2100 },
-  { name: "Warm drone", family: "drone", base: 130.8, harmonics: [1, 1.5, 2], noise: 0.035, filter: 900 },
-  { name: "Soft heart pulse", family: "pulse", base: 82.4, harmonics: [1, 2], noise: 0.025, filter: 700 },
-  { name: "White breath", family: "breath", base: 174.6, harmonics: [1], noise: 0.38, filter: 1050 }
-];
+"use strict";
 
-const PAUSE_PRESETS = [
-  { name: "Low grounding drone", family: "drone", base: 82.4, harmonics: [1, 1.5, 2], noise: 0.025, filter: 620 },
-  { name: "Soft hum", family: "drone", base: 110, harmonics: [1, 2.01], noise: 0.035, filter: 780 },
-  { name: "Rain bed", family: "rain", base: 92.5, harmonics: [1], noise: 0.26, filter: 1300 },
-  { name: "Deep bowl sustain", family: "bowl", base: 98, harmonics: [1, 1.5, 2.02], noise: 0.012, filter: 850 },
-  { name: "Quiet ocean floor", family: "water", base: 73.4, harmonics: [1], noise: 0.24, filter: 520 }
-];
-
-const state = {
+const $ = (id) => document.getElementById(id);
+const defaults = {
   inhale: 5,
   pause: 0,
   exhale: 5,
-  sessionMode: "continuous",
   sessionMinutes: 10,
-  inhaleSound: 0,
-  exhaleSound: 3,
-  pauseSound: 0,
-  shape: "fade-out",
+  sessionMode: "continuous",
+  inhaleSound: "bowl",
+  pauseSound: "hum",
+  exhaleSound: "ocean",
   volume: 0.45,
-  running: false,
-  phase: "ready",
-  phaseStartedAt: 0,
-  phaseElapsedBeforePause: 0,
-  sessionStartedAt: 0,
-  elapsedBeforeStart: 0,
-  breathCount: 0,
-  rafId: null,
-  audio: null,
-  masterGain: null,
-  pauseNodes: null
+  shape: "fade-out",
+  playback: "sustained",
+  view: "circle",
+  palette: "sea",
+  theme: "light",
+  showTimer: false,
+  timerStep: 1,
+  showSession: true,
+  reducedMotion: window.matchMedia("(prefers-reduced-motion: reduce)").matches,
 };
-
-const els = {
-  inhale: document.querySelector("#inhale"),
-  pause: document.querySelector("#pause"),
-  exhale: document.querySelector("#exhale"),
-  inhaleValue: document.querySelector("#inhale-value"),
-  pauseValue: document.querySelector("#pause-value"),
-  exhaleValue: document.querySelector("#exhale-value"),
-  breathSummary: document.querySelector("#breath-summary"),
-  sessionSummary: document.querySelector("#session-summary"),
-  sessionMinutes: document.querySelector("#session-minutes"),
-  sessionMinutesValue: document.querySelector("#session-minutes-value"),
-  sessionButtons: Array.from(document.querySelectorAll("[data-session]")),
-  inhaleSound: document.querySelector("#inhale-sound"),
-  exhaleSound: document.querySelector("#exhale-sound"),
-  pauseSound: document.querySelector("#pause-sound"),
-  soundShape: document.querySelector("#sound-shape"),
-  volume: document.querySelector("#volume"),
-  volumeValue: document.querySelector("#volume-value"),
-  phaseLabel: document.querySelector("#phase-label"),
-  phaseTime: document.querySelector("#phase-time"),
-  phaseHelper: document.querySelector("#phase-helper"),
-  sessionTime: document.querySelector("#session-time"),
-  sessionElapsed: document.querySelector("#session-elapsed"),
-  breathOrb: document.querySelector("#breath-orb"),
-  waveCanvas: document.querySelector("#wave-canvas"),
-  wavePhase: document.querySelector("#wave-phase"),
-  waveTime: document.querySelector("#wave-time"),
-  waveHelper: document.querySelector("#wave-helper"),
-  waveSessionTime: document.querySelector("#wave-session-time"),
-  waveSessionElapsed: document.querySelector("#wave-session-elapsed"),
-  startStop: document.querySelector("#start-stop"),
-  dashStartStop: document.querySelector("#dash-start-stop"),
-  waveStartStop: document.querySelector("#wave-start-stop"),
-  reset: document.querySelector("#reset"),
-  dashReset: document.querySelector("#dash-reset"),
-  waveReset: document.querySelector("#wave-reset"),
-  dashPhase: document.querySelector("#dash-phase"),
-  cycleLength: document.querySelector("#cycle-length"),
-  dashSession: document.querySelector("#dash-session"),
-  breathCount: document.querySelector("#breath-count"),
-  previewSound: document.querySelector("#preview-sound"),
-  viewButtons: Array.from(document.querySelectorAll("[data-view]")),
-  panels: Array.from(document.querySelectorAll("[data-panel]"))
+const sounds = [
+  { id: "silent", name: "Silence", family: "silent" },
+  {
+    id: "bowl",
+    name: "Singing bowl",
+    family: "bowl",
+    base: 164,
+    partials: [1, 2.71, 4.05],
+  },
+  {
+    id: "deep-bowl",
+    name: "Deep bowl",
+    family: "bowl",
+    base: 110,
+    partials: [1, 2.02, 2.73],
+  },
+  {
+    id: "bell",
+    name: "Soft bell",
+    family: "bell",
+    base: 440,
+    partials: [1, 2.76, 5.4],
+  },
+  {
+    id: "recorded-bowl",
+    name: "Recorded bowl · struck",
+    family: "sample",
+    file: "audio/bowl-struck.mp3",
+  },
+  {
+    id: "recorded-sustain",
+    name: "Recorded bowl · resonant",
+    family: "sample",
+    file: "audio/bowl-resonant.mp3",
+  },
+  { id: "ocean", name: "Ocean wash", family: "noise", cutoff: 650, q: 0.5 },
+  { id: "rain", name: "Rain hush", family: "noise", cutoff: 2800, q: 0.4 },
+  {
+    id: "wind",
+    name: "Wind through leaves",
+    family: "noise",
+    cutoff: 1100,
+    q: 1.8,
+  },
+  { id: "breath", name: "Soft air", family: "noise", cutoff: 1600, q: 0.7 },
+  { id: "stream", name: "Stream murmur", family: "noise", cutoff: 1900, q: 3 },
+  {
+    id: "flute",
+    name: "Bamboo flute",
+    family: "flute",
+    base: 294,
+    partials: [1, 2, 3],
+  },
+  {
+    id: "hum",
+    name: "Low grounding hum",
+    family: "hum",
+    base: 98,
+    partials: [1, 2, 3],
+  },
+  {
+    id: "drone",
+    name: "Warm drone",
+    family: "hum",
+    base: 131,
+    partials: [1, 1.5, 2.001],
+  },
+  {
+    id: "pulse",
+    name: "Gentle low pulse",
+    family: "pulse",
+    base: 82,
+    partials: [1, 2],
+  },
+];
+const palettes = {
+  sea: ["#287d71", "#7bc8ac", "#e5b879"],
+  rose: ["#a8567d", "#d5a2bd", "#81afa2"],
+  blue: ["#467da9", "#8abdd1", "#cfab81"],
 };
-
-function formatSeconds(value) {
-  return `${value.toFixed(1)}s`;
-}
-
-function formatSession(ms) {
-  if (state.sessionMode === "continuous") return "Continuous";
-  const total = state.sessionMinutes * 60 * 1000;
-  const remaining = Math.max(0, total - ms);
-  const minutes = Math.floor(remaining / 60000);
-  const seconds = Math.floor((remaining % 60000) / 1000);
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function formatElapsed(ms) {
-  const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-  }
-
-  return `${minutes}:${String(seconds).padStart(2, "0")}`;
-}
-
-function getCycleDuration() {
-  return state.inhale + state.pause + state.exhale;
-}
-
-function getSessionElapsed(now) {
-  if (!state.running) return state.elapsedBeforeStart;
-  return state.elapsedBeforeStart + now - state.sessionStartedAt;
-}
-
-function hydrateSoundSelect(select, presets, selectedIndex) {
-  select.innerHTML = "";
-  presets.forEach((preset, index) => {
-    const option = document.createElement("option");
-    option.value = String(index);
-    option.textContent = preset.name;
-    select.append(option);
+let settings = { ...defaults };
+try {
+  const saved = JSON.parse(
+    localStorage.getItem("breathing-settings-v2") || "{}",
+  );
+  Object.keys(defaults).forEach((key) => {
+    if (typeof saved[key] === typeof defaults[key]) settings[key] = saved[key];
   });
-  select.value = String(selectedIndex);
+} catch (_) {
+  /* Storage may be unavailable in private browsing. */
+}
+["inhale", "exhale"].forEach(
+  (key) => (settings[key] = Math.min(7, Math.max(3, settings[key]))),
+);
+settings.pause = Math.min(2, Math.max(0, settings.pause));
+settings.sessionMinutes = Math.min(40, Math.max(3, settings.sessionMinutes));
+settings.volume = Math.min(1, Math.max(0, settings.volume));
+if (![0.1, 0.2, 0.5, 1].includes(settings.timerStep)) settings.timerStep = 1;
+if (!palettes[settings.palette]) settings.palette = "sea";
+if (!["circle", "wave", "petal", "dashboard"].includes(settings.view))
+  settings.view = "circle";
+["inhaleSound", "pauseSound", "exhaleSound"].forEach((key) => {
+  if (!sounds.some((sound) => sound.id === settings[key]))
+    settings[key] = defaults[key];
+});
+
+const session = {
+  running: false,
+  elapsed: 0,
+  started: 0,
+  phase: "inhale",
+  progress: 0,
+  breaths: 0,
+  complete: false,
+};
+let audio,
+  master,
+  clock,
+  animation,
+  voiceToken = 0,
+  starting = false;
+const voices = new Set();
+const buffers = new Map();
+const noiseBuffers = new Map();
+const ctx = $("visual").getContext("2d");
+
+function persist() {
+  try {
+    localStorage.setItem("breathing-settings-v2", JSON.stringify(settings));
+  } catch (_) {}
+}
+function elapsed() {
+  return (
+    session.elapsed +
+    (session.running ? (performance.now() - session.started) / 1000 : 0)
+  );
+}
+function duration() {
+  return settings.inhale + settings.pause + settings.exhale;
+}
+function timeLabel(seconds) {
+  const whole = Math.floor(Math.max(0, seconds));
+  const hours = Math.floor(whole / 3600);
+  return (
+    (hours
+      ? hours + ":" + String(Math.floor(whole / 60) % 60).padStart(2, "0")
+      : Math.floor(whole / 60)) +
+    ":" +
+    String(whole % 60).padStart(2, "0")
+  );
+}
+function locate(seconds) {
+  const cycle = duration();
+  const breaths = Math.floor(seconds / cycle);
+  let t = seconds % cycle;
+  if (t < settings.inhale)
+    return { phase: "inhale", progress: t / settings.inhale, breaths };
+  t -= settings.inhale;
+  if (settings.pause && t < settings.pause)
+    return { phase: "pause", progress: t / settings.pause, breaths };
+  t -= settings.pause;
+  return { phase: "exhale", progress: t / settings.exhale, breaths };
+}
+function levelAt(seconds) {
+  const point = locate(((seconds % duration()) + duration()) % duration());
+  if (point.phase === "pause") return 1;
+  const smooth = (1 - Math.cos(point.progress * Math.PI)) / 2;
+  return point.phase === "inhale" ? smooth : 1 - smooth;
+}
+function setDrawer(open) {
+  $("settings").classList.toggle("open", open);
+  $("settings").inert = !open;
+  $("settings").setAttribute("aria-hidden", String(!open));
+  $("settings-open").setAttribute("aria-expanded", String(open));
+  $("scrim").hidden = !open;
+  if (!open) {
+    stopVoices("preview");
+    $("settings-open").focus();
+  } else $("settings-close").focus();
 }
 
 function ensureAudio() {
-  if (!state.audio) {
-    state.audio = new AudioContext();
-    state.masterGain = state.audio.createGain();
-    state.masterGain.gain.value = state.volume;
-    state.masterGain.connect(state.audio.destination);
+  if (!audio) {
+    audio = new (window.AudioContext || window.webkitAudioContext)();
+    master = audio.createGain();
+    master.gain.value = settings.volume * 0.65;
+    const limiter = audio.createDynamicsCompressor();
+    limiter.threshold.value = -12;
+    limiter.ratio.value = 6;
+    master.connect(limiter);
+    limiter.connect(audio.destination);
   }
-
-  if (state.audio.state === "suspended") {
-    state.audio.resume();
-  }
+  return audio.resume();
 }
-
-function makeNoiseBuffer(audio, duration, color = "pink") {
-  const length = Math.max(1, Math.floor(audio.sampleRate * duration));
-  const buffer = audio.createBuffer(1, length, audio.sampleRate);
+function stopVoices(group) {
+  voiceToken++;
+  voices.forEach((voice) => {
+    if (group && voice.group !== group) return;
+    voice.gain.gain.cancelScheduledValues(audio.currentTime);
+    voice.gain.gain.setTargetAtTime(0, audio.currentTime, 0.018);
+    voice.sources.forEach((source) => {
+      try {
+        source.stop(audio.currentTime + 0.09);
+      } catch (_) {}
+    });
+    voices.delete(voice);
+  });
+}
+function noiseBuffer() {
+  if (noiseBuffers.has("pink")) return noiseBuffers.get("pink");
+  const buffer = audio.createBuffer(1, audio.sampleRate * 4, audio.sampleRate);
   const data = buffer.getChannelData(0);
-  let slow = 0;
-  let medium = 0;
-
-  for (let i = 0; i < length; i += 1) {
-    const white = Math.random() * 2 - 1;
-    slow = slow * 0.985 + white * 0.015;
-    medium = medium * 0.92 + white * 0.08;
-    data[i] = color === "brown" ? slow : (slow * 0.65 + medium * 0.35);
+  let b0 = 0,
+    b1 = 0,
+    b2 = 0;
+  for (let i = 0; i < data.length; i++) {
+    const w = Math.random() * 2 - 1;
+    b0 = 0.99765 * b0 + w * 0.099046;
+    b1 = 0.963 * b1 + w * 0.2965164;
+    b2 = 0.57 * b2 + w * 1.0526913;
+    data[i] = (b0 + b1 + b2 + w * 0.1848) * 0.15;
   }
-
+  noiseBuffers.set("pink", buffer);
   return buffer;
 }
-
-function applyEnvelope(gain, start, duration, peak) {
-  const end = start + duration;
-  gain.cancelScheduledValues(start);
-  gain.setValueAtTime(0.0001, start);
-
-  if (state.shape === "constant") {
-    gain.linearRampToValueAtTime(peak, start + 0.12);
-    gain.setValueAtTime(peak, Math.max(start + 0.13, end - 0.18));
-    gain.linearRampToValueAtTime(0.0001, end);
-    return;
+async function sampleBuffer(file) {
+  if (!buffers.has(file)) {
+    const promise = (
+      location.protocol === "file:" && window.BREATHING_SAMPLES
+        ? Promise.resolve(
+            Uint8Array.from(atob(window.BREATHING_SAMPLES[file]), (char) =>
+              char.charCodeAt(0),
+            ).buffer,
+          )
+        : fetch(file).then((response) => {
+            if (!response.ok) throw new Error("Audio file unavailable");
+            return response.arrayBuffer();
+          })
+    ).then((data) => audio.decodeAudioData(data));
+    buffers.set(file, promise);
+    promise.catch(() => buffers.delete(file));
   }
-
-  if (state.shape === "swell") {
-    gain.linearRampToValueAtTime(peak * 0.28, start + 0.12);
-    gain.linearRampToValueAtTime(peak, start + duration * 0.52);
-    gain.linearRampToValueAtTime(0.0001, end);
-    return;
-  }
-
-  gain.linearRampToValueAtTime(peak, start + 0.08);
-  gain.exponentialRampToValueAtTime(0.0001, end);
+  return buffers.get(file);
 }
-
-function createFilter(audio, preset, direction, start, duration) {
-  const filter = audio.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.Q.value = 0.8;
-  const base = preset.filter || 1200;
-  const startFreq = direction === "out" ? base * 1.2 : base * 0.72;
-  const endFreq = direction === "out" ? base * 0.62 : base * 1.12;
-  filter.frequency.setValueAtTime(startFreq, start);
-  filter.frequency.linearRampToValueAtTime(endFreq, start + duration);
-  return filter;
-}
-
-function makeTremolo(audio, start, duration, depth = 0.08, rate = 0.18) {
-  const tremoloGain = audio.createGain();
-  const lfo = audio.createOscillator();
-  const lfoGain = audio.createGain();
-  tremoloGain.gain.value = 1 - depth;
-  lfo.frequency.value = rate;
-  lfoGain.gain.value = depth;
-  lfo.connect(lfoGain);
-  lfoGain.connect(tremoloGain.gain);
-  lfo.start(start);
-  lfo.stop(start + duration + 0.08);
-  return tremoloGain;
-}
-
-function playMeditationSound(presets, presetIndex, duration, direction = "in", options = {}) {
-  ensureAudio();
-  const audio = state.audio;
-  const preset = presets[presetIndex];
-  const startedAt = audio.currentTime + 0.02;
-  const safeDuration = Math.max(0.2, duration);
-  const output = audio.createGain();
-  const filter = createFilter(audio, preset, direction, startedAt, safeDuration);
-  const tremolo = makeTremolo(audio, startedAt, safeDuration, preset.family === "pulse" ? 0.18 : 0.055, preset.family === "pulse" ? 0.9 : 0.16);
-  const nodes = [output, filter, tremolo];
-
-  output.gain.value = 0.0001;
-  output.connect(filter);
-  filter.connect(tremolo);
-  tremolo.connect(state.masterGain);
-  applyEnvelope(output.gain, startedAt, safeDuration, options.peak || (direction === "pause" ? 0.34 : 0.58));
-
-  preset.harmonics.forEach((multiple, index) => {
-    const oscillator = audio.createOscillator();
-    const toneGain = audio.createGain();
-    const directionRatio = direction === "out" ? 0.82 : 1;
-    const detune = (index % 2 === 0 ? -1 : 1) * (preset.family === "bowl" ? 4 : 1.6);
-    oscillator.type = preset.family === "bell" ? "triangle" : "sine";
-    oscillator.frequency.value = preset.base * multiple * directionRatio;
-    oscillator.detune.setValueAtTime(detune, startedAt);
-    oscillator.detune.linearRampToValueAtTime(-detune * 0.4, startedAt + safeDuration);
-    toneGain.gain.value = (preset.family === "air" || preset.family === "breath" ? 0.18 : 0.3) / (index + 1);
-    oscillator.connect(toneGain);
-    toneGain.connect(output);
-    oscillator.start(startedAt);
-    oscillator.stop(startedAt + safeDuration + 0.04);
-    nodes.push(oscillator, toneGain);
-  });
-
-  if (preset.noise > 0) {
-    const noise = audio.createBufferSource();
-    const noiseGain = audio.createGain();
-    const color = preset.family === "water" || preset.family === "drone" ? "brown" : "pink";
-    noise.buffer = makeNoiseBuffer(audio, safeDuration, color);
-    noiseGain.gain.value = preset.noise;
-    noise.connect(noiseGain);
-    noiseGain.connect(output);
-    noise.start(startedAt);
-    noise.stop(startedAt + safeDuration);
-    nodes.push(noise, noiseGain);
-  }
-
-  return { nodes, output };
-}
-
-function startPauseSound(duration) {
-  if (duration <= 0) return;
-  stopPauseSound();
-  state.pauseNodes = playMeditationSound(PAUSE_PRESETS, state.pauseSound, duration, "pause", { peak: 0.24 });
-}
-
-function stopPauseSound() {
-  if (!state.pauseNodes) return;
-  const audio = state.audio;
-  const now = audio ? audio.currentTime : 0;
+async function playSound(phase, seconds, group = "session") {
+  const sound = sounds.find((item) => item.id === settings[phase + "Sound"]);
+  if (!sound || sound.family === "silent" || seconds <= 0) return;
+  const token = voiceToken;
+  const requestedAt = performance.now();
+  let buffer;
   try {
-    state.pauseNodes.output.gain.cancelScheduledValues(now);
-    state.pauseNodes.output.gain.setTargetAtTime(0.0001, now, 0.04);
-    state.pauseNodes.nodes.forEach((node) => {
-      if (typeof node.stop === "function") {
-        node.stop(now + 0.1);
-      }
-    });
-  } catch (error) {
-    // Nodes may have already stopped at the end of the scheduled pause.
+    await ensureAudio();
+    if (sound.file) buffer = await sampleBuffer(sound.file);
+  } catch (_) {
+    if (token === voiceToken)
+      $("notice").textContent =
+        "This sound could not load. Choose another sound in Settings.";
+    return;
   }
-  state.pauseNodes = null;
-}
-
-function setPhase(phase, now) {
-  state.phase = phase;
-  state.phaseStartedAt = now;
-  state.phaseElapsedBeforePause = 0;
-  els.breathOrb.classList.toggle("paused", phase === "pause");
-
-  if (phase === "inhale") {
-    stopPauseSound();
-    playMeditationSound(SOUND_PRESETS, state.inhaleSound, state.inhale, "in");
-  } else if (phase === "pause") {
-    startPauseSound(state.pause);
-  } else if (phase === "exhale") {
-    stopPauseSound();
-    playMeditationSound(SOUND_PRESETS, state.exhaleSound, state.exhale, "out");
+  if (token !== voiceToken) return;
+  seconds -= (performance.now() - requestedAt) / 1000;
+  if (seconds <= 0.03) return;
+  const span = Math.min(
+    seconds,
+    settings.playback === "cue" && phase !== "pause" ? 1.25 : seconds,
+  );
+  const start = audio.currentTime + 0.01;
+  const end = start + span;
+  const gain = audio.createGain();
+  const filter = audio.createBiquadFilter();
+  const voice = { gain, sources: [], group };
+  voices.add(voice);
+  gain.connect(filter);
+  filter.connect(master);
+  filter.type = "lowpass";
+  filter.frequency.value = sound.cutoff || 3200;
+  filter.Q.value = sound.q || 0.5;
+  const peak = phase === "pause" ? 0.15 : sound.family === "noise" ? 0.65 : 0.4;
+  const attack = Math.min(
+    span * 0.2,
+    sound.family === "bell" || sound.family === "bowl" ? 0.04 : 0.35,
+  );
+  const release = Math.min(span * 0.22, 0.35);
+  gain.gain.setValueAtTime(0, start);
+  gain.gain.linearRampToValueAtTime(peak, start + attack);
+  if (phase === "pause" || settings.shape === "constant") {
+    gain.gain.setValueAtTime(peak, end - release);
+  } else if (settings.shape === "swell") {
+    gain.gain.cancelScheduledValues(start);
+    gain.gain.setValueAtTime(0, start);
+    gain.gain.linearRampToValueAtTime(peak, start + span * 0.5);
+  } else gain.gain.exponentialRampToValueAtTime(peak * 0.1, end - release);
+  gain.gain.linearRampToValueAtTime(0, end);
+  function source(node, target = gain) {
+    node.connect(target);
+    node.start(start);
+    node.stop(end + 0.02);
+    voice.sources.push(node);
+  }
+  if (buffer) {
+    const node = audio.createBufferSource();
+    node.buffer = buffer;
+    node.loop = true;
+    source(node);
+  } else if (sound.family === "noise") {
+    const node = audio.createBufferSource();
+    node.buffer = noiseBuffer();
+    node.loop = true;
+    source(node);
+    filter.frequency.setValueAtTime(
+      sound.cutoff * (phase === "exhale" ? 1.15 : 0.65),
+      start,
+    );
+    filter.frequency.linearRampToValueAtTime(
+      sound.cutoff * (phase === "exhale" ? 0.65 : 1.15),
+      end,
+    );
+    const lfo = audio.createOscillator();
+    const depth = audio.createGain();
+    lfo.frequency.value = sound.id === "stream" ? 4.3 : 0.19;
+    depth.gain.value = sound.cutoff * 0.12;
+    lfo.connect(depth);
+    depth.connect(filter.frequency);
+    lfo.start(start);
+    lfo.stop(end);
+    voice.sources.push(lfo);
   } else {
-    stopPauseSound();
-  }
-}
-
-function nextPhase(now) {
-  if (state.phase === "inhale") {
-    if (state.pause > 0) {
-      setPhase("pause", now);
-    } else {
-      setPhase("exhale", now);
+    sound.partials.forEach((partial, i) => {
+      const oscillator = audio.createOscillator();
+      const partialGain = audio.createGain();
+      oscillator.frequency.value =
+        sound.base * partial * (phase === "exhale" ? 0.84 : 1);
+      oscillator.detune.value = i % 2 ? 3 : -2;
+      partialGain.gain.setValueAtTime(0.55 / (1 + i * 2), start);
+      if (["bowl", "bell"].includes(sound.family))
+        partialGain.gain.exponentialRampToValueAtTime(0.001, end);
+      partialGain.connect(gain);
+      source(oscillator, partialGain);
+    });
+    if (sound.family === "pulse") {
+      const lfo = audio.createOscillator(),
+        depth = audio.createGain();
+      lfo.frequency.value = 0.85;
+      depth.gain.value = peak * 0.2;
+      lfo.connect(depth);
+      depth.connect(gain.gain);
+      lfo.start(start);
+      lfo.stop(end);
+      voice.sources.push(lfo);
     }
-    return;
   }
-
-  if (state.phase === "pause") {
-    setPhase("exhale", now);
-    return;
-  }
-
-  state.breathCount += 1;
-  setPhase("inhale", now);
+  voice.sources[0].onended = () => {
+    voice.sources.forEach((node) => node.disconnect());
+    gain.disconnect();
+    filter.disconnect();
+    voices.delete(voice);
+  };
 }
-
-function updateOrb(progress) {
-  let scale = 1;
-  if (state.phase === "inhale") {
-    scale = 1 + progress * 0.32;
-  } else if (state.phase === "pause") {
-    scale = 1.32;
-  } else if (state.phase === "exhale") {
-    scale = 1.32 - progress * 0.32;
+function updateSession(play = false) {
+  let seconds = elapsed();
+  if (
+    session.running &&
+    settings.sessionMode !== "continuous" &&
+    seconds >= settings.sessionMinutes * 60
+  ) {
+    session.elapsed = settings.sessionMinutes * 60;
+    session.running = false;
+    session.complete = true;
+    clearInterval(clock);
+    stopVoices();
+    document.body.classList.remove("running");
+    $("start-stop").textContent = "Start";
+    seconds = session.elapsed;
   }
-  els.breathOrb.style.transform = `scale(${scale})`;
-}
-
-function getBreathLevel(phase, progress) {
-  if (phase === "inhale") return progress;
-  if (phase === "pause") return 1;
-  if (phase === "exhale") return 1 - progress;
-  return 0;
-}
-
-function getCycleLevelAt(seconds) {
-  const cycle = getCycleDuration();
-  if (cycle <= 0) return 0;
-  let position = ((seconds % cycle) + cycle) % cycle;
-
-  if (position <= state.inhale) {
-    return 0.5 - Math.cos((position / state.inhale) * Math.PI) * 0.5;
+  const next = locate(seconds);
+  const changed =
+    next.phase !== session.phase || next.breaths !== session.breaths;
+  Object.assign(session, next);
+  if (session.running && (play || changed)) {
+    stopVoices("session");
+    playSound(session.phase, settings[session.phase] * (1 - session.progress));
   }
-
-  position -= state.inhale;
-  if (state.pause > 0 && position <= state.pause) {
-    return 1;
-  }
-
-  position -= state.pause;
-  return 0.5 + Math.cos((Math.min(position, state.exhale) / state.exhale) * Math.PI) * 0.5;
-}
-
-function drawWave(progress, phaseElapsed) {
-  const canvas = els.waveCanvas;
-  if (!canvas) return;
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  const width = Math.max(1, Math.floor(rect.width * dpr));
-  const height = Math.max(1, Math.floor(rect.height * dpr));
-
-  if (canvas.width !== width || canvas.height !== height) {
-    canvas.width = width;
-    canvas.height = height;
-  }
-
-  const ctx = canvas.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  const w = rect.width;
-  const h = rect.height;
-  const pad = Math.max(22, Math.min(w, h) * 0.08);
-  const top = pad;
-  const bottom = h - pad;
-  const mid = (top + bottom) / 2;
-  const amp = (bottom - top) / 2;
-  const cycle = getCycleDuration();
-  const samples = 220;
-  const visibleSeconds = cycle * 2.25;
-  const elapsedInCycle = state.phase === "ready" || state.phase === "complete"
+  const ready = !session.running && seconds === 0;
+  const label = session.complete
+    ? "Complete"
+    : ready
+      ? "Ready"
+      : { inhale: "Breathe in", pause: "Hold", exhale: "Breathe out" }[
+          session.phase
+        ];
+  $("phase-label").textContent = label;
+  const left = session.complete
     ? 0
-    : state.breathCount * cycle + (state.phase === "inhale" ? phaseElapsed : state.phase === "pause" ? state.inhale + phaseElapsed : state.inhale + state.pause + phaseElapsed);
-
-  ctx.clearRect(0, 0, w, h);
-
-  const bg = ctx.createLinearGradient(0, 0, w, h);
-  bg.addColorStop(0, "rgba(255, 253, 248, 0.72)");
-  bg.addColorStop(0.58, "rgba(238, 245, 243, 0.8)");
-  bg.addColorStop(1, "rgba(245, 239, 232, 0.74)");
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, w, h);
-
-  ctx.strokeStyle = "rgba(31, 41, 51, 0.1)";
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(pad, mid);
-  ctx.lineTo(w - pad, mid);
-  ctx.stroke();
-
-  ctx.strokeStyle = "rgba(47, 143, 131, 0.12)";
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i += 1) {
-    const x = pad + ((w - pad * 2) / 4) * i;
-    ctx.beginPath();
-    ctx.moveTo(x, top);
-    ctx.lineTo(x, bottom);
-    ctx.stroke();
-  }
-
-  ctx.beginPath();
-  for (let i = 0; i <= samples; i += 1) {
-    const ratio = i / samples;
-    const seconds = elapsedInCycle - visibleSeconds * 0.44 + ratio * visibleSeconds;
-    const level = getCycleLevelAt(seconds);
-    const x = pad + ratio * (w - pad * 2);
-    const y = bottom - level * amp * 2;
-    if (i === 0) {
-      ctx.moveTo(x, y);
-    } else {
-      ctx.lineTo(x, y);
-    }
-  }
-
-  const line = ctx.createLinearGradient(pad, 0, w - pad, 0);
-  line.addColorStop(0, "rgba(73, 106, 156, 0.34)");
-  line.addColorStop(0.48, "rgba(47, 143, 131, 0.98)");
-  line.addColorStop(1, "rgba(208, 111, 81, 0.56)");
-  ctx.strokeStyle = line;
-  ctx.lineWidth = 5;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.stroke();
-
-  const currentLevel = getBreathLevel(state.phase, progress);
-  const markerX = pad + (w - pad * 2) * 0.44;
-  const markerY = bottom - currentLevel * amp * 2;
-  ctx.fillStyle = "rgba(255, 253, 248, 0.95)";
-  ctx.strokeStyle = "rgba(31, 41, 51, 0.22)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.arc(markerX, markerY, 12, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = state.phase === "exhale" ? "#d06f51" : "#2f8f83";
-  ctx.beginPath();
-  ctx.arc(markerX, markerY, 5, 0, Math.PI * 2);
-  ctx.fill();
+    : settings[session.phase] * (1 - session.progress);
+  const step = settings.timerStep;
+  const rounded = Math.min(
+    settings[session.phase],
+    Math.ceil((left - 0.000001) / step) * step,
+  );
+  $("breath-timer").hidden = !settings.showTimer;
+  $("breath-timer").textContent =
+    step === 1 ? Math.ceil(left) : Math.max(0, rounded).toFixed(1);
+  $("session-time").textContent =
+    settings.sessionMode === "continuous"
+      ? "Continuous"
+      : timeLabel(settings.sessionMinutes * 60 - seconds);
+  $("elapsed").textContent = timeLabel(seconds) + " elapsed";
+  $("session-readout").hidden = !settings.showSession;
+  $("dash-phase").textContent = label;
+  $("dash-session").textContent = $("session-time").textContent;
+  $("cycle-length").textContent = duration().toFixed(1) + "s";
+  $("breath-count").textContent = session.breaths;
 }
-
-function render(now = performance.now()) {
-  const durations = {
-    ready: state.inhale,
-    inhale: state.inhale,
-    pause: state.pause,
-    exhale: state.exhale,
-    complete: 0
-  };
-  const phaseNames = {
-    ready: "Ready",
-    inhale: "Breathe in",
-    pause: "Pause",
-    exhale: "Breathe out",
-    complete: "Complete"
-  };
-  const duration = durations[state.phase] || state.inhale;
-  const elapsed = state.running ? (now - state.phaseStartedAt) / 1000 : 0;
-
-  if (state.running && elapsed >= duration) {
-    nextPhase(now);
-    return render(now);
+async function start() {
+  if (session.running || starting) return;
+  starting = true;
+  stopVoices();
+  $("notice").textContent = "";
+  try {
+    await ensureAudio();
+  } catch (_) {
+    $("notice").textContent =
+      "Audio is unavailable. The visual timer will still run.";
   }
-
-  const phaseElapsed = state.running ? Math.max(0, elapsed) : 0;
-  const remaining = Math.max(0, duration - phaseElapsed);
-  const progress = duration > 0 ? Math.min(1, phaseElapsed / duration) : 0;
-  const sessionElapsed = getSessionElapsed(now);
-
-  if (state.running && state.sessionMode !== "continuous" && sessionElapsed >= state.sessionMinutes * 60 * 1000) {
-    completeSession(now);
-    return;
+  starting = false;
+  if (document.hidden) return;
+  if (session.complete) {
+    session.elapsed = 0;
+    session.complete = false;
   }
-
-  updateOrb(progress);
-  drawWave(progress, phaseElapsed);
-  els.phaseLabel.textContent = phaseNames[state.phase];
-  els.phaseTime.textContent = state.phase === "complete" ? "0.0" : remaining.toFixed(1);
-  els.phaseHelper.textContent = state.running ? `${Math.round(progress * 100)}%` : "Press start";
-  els.sessionTime.textContent = formatSession(sessionElapsed);
-  els.sessionElapsed.textContent = `${formatElapsed(sessionElapsed)} elapsed`;
-  els.wavePhase.textContent = phaseNames[state.phase];
-  els.waveTime.textContent = state.phase === "complete" ? "0.0" : remaining.toFixed(1);
-  els.waveHelper.textContent = state.running ? `${Math.round(progress * 100)}%` : "Press start";
-  els.waveSessionTime.textContent = formatSession(sessionElapsed);
-  els.waveSessionElapsed.textContent = `${formatElapsed(sessionElapsed)} elapsed`;
-  els.dashPhase.textContent = phaseNames[state.phase];
-  els.dashSession.textContent = formatSession(sessionElapsed);
-  els.breathCount.textContent = String(state.breathCount);
+  session.started = performance.now();
+  session.running = true;
+  $("start-stop").textContent = "Pause";
+  document.body.classList.add("running");
+  setDrawer(false);
+  updateSession(true);
+  clearInterval(clock);
+  clock = setInterval(() => updateSession(), 50);
+  animate();
 }
-
-function tick(now) {
-  render(now);
-  if (state.running) {
-    state.rafId = requestAnimationFrame(tick);
-  }
+function pause() {
+  if (!session.running) return;
+  session.elapsed = elapsed();
+  session.running = false;
+  clearInterval(clock);
+  stopVoices();
+  $("start-stop").textContent = "Resume";
+  document.body.classList.remove("running");
+  updateSession();
+  draw();
 }
-
-function start() {
-  ensureAudio();
-  const now = performance.now();
-  state.running = true;
-  state.sessionStartedAt = now;
-  if (state.phase === "ready" || state.phase === "complete") {
-    state.elapsedBeforeStart = 0;
-    state.breathCount = 0;
-    setPhase("inhale", now);
-  } else {
-    state.phaseStartedAt = now - state.phaseElapsedBeforePause * 1000;
-    const remaining = Math.max(0.2, ({
-      inhale: state.inhale,
-      pause: state.pause,
-      exhale: state.exhale
-    }[state.phase] || state.inhale) - state.phaseElapsedBeforePause);
-
-    if (state.phase === "inhale") {
-      playMeditationSound(SOUND_PRESETS, state.inhaleSound, remaining, "in");
-    } else if (state.phase === "pause") {
-      startPauseSound(remaining);
-    } else if (state.phase === "exhale") {
-      playMeditationSound(SOUND_PRESETS, state.exhaleSound, remaining, "out");
-    }
-  }
-  syncTransport();
-  tick(now);
-}
-
-function stop() {
-  const now = performance.now();
-  state.elapsedBeforeStart = getSessionElapsed(now);
-  state.phaseElapsedBeforePause = Math.max(0, (now - state.phaseStartedAt) / 1000);
-  state.running = false;
-  cancelAnimationFrame(state.rafId);
-  stopPauseSound();
-  syncTransport();
-  render();
-}
-
 function reset() {
-  state.running = false;
-  state.phase = "ready";
-  state.phaseStartedAt = 0;
-  state.phaseElapsedBeforePause = 0;
-  state.sessionStartedAt = 0;
-  state.elapsedBeforeStart = 0;
-  state.breathCount = 0;
-  cancelAnimationFrame(state.rafId);
-  stopPauseSound();
-  syncTransport();
-  render();
+  pause();
+  stopVoices();
+  session.elapsed = 0;
+  session.complete = false;
+  $("start-stop").textContent = "Start";
+  $("notice").textContent = "";
+  updateSession();
+  draw();
 }
 
-function completeSession(now) {
-  state.running = false;
-  state.phase = "complete";
-  state.phaseElapsedBeforePause = 0;
-  state.elapsedBeforeStart = state.sessionMinutes * 60 * 1000;
-  cancelAnimationFrame(state.rafId);
-  stopPauseSound();
-  syncTransport();
-  render(now);
-}
-
-function syncTransport() {
-  const label = state.running ? "Pause" : "Start";
-  els.startStop.textContent = label;
-  els.dashStartStop.textContent = label;
-  els.waveStartStop.textContent = label;
-}
-
-function syncSettings() {
-  state.inhale = Number(els.inhale.value);
-  state.pause = Number(els.pause.value);
-  state.exhale = Number(els.exhale.value);
-  state.sessionMinutes = Number(els.sessionMinutes.value);
-  state.inhaleSound = Number(els.inhaleSound.value);
-  state.exhaleSound = Number(els.exhaleSound.value);
-  state.pauseSound = Number(els.pauseSound.value);
-  state.shape = els.soundShape.value;
-  state.volume = Number(els.volume.value);
-
-  if (state.masterGain) {
-    state.masterGain.gain.setTargetAtTime(state.volume, state.audio.currentTime, 0.03);
+function draw() {
+  const canvas = $("visual");
+  if (settings.view === "dashboard" || document.hidden) return;
+  const rect = canvas.getBoundingClientRect();
+  const w = rect.width,
+    h = rect.height;
+  if (!w || !h) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  if (
+    canvas.width !== Math.round(w * dpr) ||
+    canvas.height !== Math.round(h * dpr)
+  ) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
   }
-
-  els.inhaleValue.textContent = formatSeconds(state.inhale);
-  els.pauseValue.textContent = formatSeconds(state.pause);
-  els.exhaleValue.textContent = formatSeconds(state.exhale);
-  els.breathSummary.textContent = `${state.inhale.toFixed(1)} / ${state.pause.toFixed(1)} / ${state.exhale.toFixed(1)}s`;
-  els.sessionMinutesValue.textContent = `${state.sessionMinutes} min`;
-  els.sessionSummary.textContent = state.sessionMode === "continuous" ? "Continuous" : `${state.sessionMinutes} min`;
-  els.volumeValue.textContent = `${Math.round(state.volume * 100)}%`;
-  els.cycleLength.textContent = `${getCycleDuration().toFixed(1)}s`;
-
-  if (state.phase === "ready") {
-    els.phaseTime.textContent = state.inhale.toFixed(1);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  const colors = palettes[settings.palette];
+  const seconds = elapsed();
+  const level = session.complete ? 0 : levelAt(seconds);
+  const centerX = w / 2,
+    centerY = h / 2;
+  const radius = Math.min(w * 0.34, h * 0.37, 210);
+  if (settings.view === "wave") {
+    const pad = 25,
+      top = h * 0.18,
+      height = h * 0.64;
+    const width = w - pad * 2,
+      anchor = 0.43;
+    // The curve and marker share the same eased breath function.
+    const offset = settings.reducedMotion ? 0 : seconds;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    const gradient = ctx.createLinearGradient(pad, 0, w - pad, 0);
+    gradient.addColorStop(0, colors[1]);
+    gradient.addColorStop(0.43, colors[0]);
+    gradient.addColorStop(1, colors[2]);
+    ctx.strokeStyle = gradient;
+    ctx.beginPath();
+    for (let i = 0; i <= 260; i++) {
+      const x = pad + (width * i) / 260;
+      const value = levelAt(offset + (i / 260 - anchor) * duration() * 1.7);
+      const y = top + (1 - value) * height;
+      if (!i) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    const marker = settings.reducedMotion ? levelAt(0) : level;
+    ctx.fillStyle = colors[0];
+    ctx.beginPath();
+    ctx.arc(
+      pad + width * anchor,
+      top + (1 - marker) * height,
+      8,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  } else if (settings.view === "petal") {
+    const expansion = settings.reducedMotion ? 0.55 : level;
+    ctx.save();
+    ctx.translate(centerX, centerY);
+    for (let i = 0; i < 8; i++) {
+      ctx.save();
+      ctx.rotate((i * Math.PI) / 4);
+      ctx.fillStyle = colors[i % 3];
+      ctx.globalAlpha = settings.theme === "dim" ? 0.48 : 0.25;
+      ctx.beginPath();
+      ctx.ellipse(
+        0,
+        -radius * (0.22 + expansion * 0.26),
+        radius * (0.19 + expansion * 0.11),
+        radius * (0.43 + expansion * 0.32),
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalAlpha = 0.9;
+    ctx.fillStyle = colors[0];
+    ctx.beginPath();
+    ctx.arc(0, 0, radius * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  } else {
+    const size = radius * (settings.reducedMotion ? 0.78 : 0.62 + level * 0.3);
+    ctx.strokeStyle = colors[1];
+    ctx.globalAlpha = 0.3;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    const gradient = ctx.createRadialGradient(
+      centerX - size * 0.25,
+      centerY - size * 0.3,
+      size * 0.08,
+      centerX,
+      centerY,
+      size,
+    );
+    gradient.addColorStop(0, colors[1]);
+    gradient.addColorStop(0.65, colors[0]);
+    gradient.addColorStop(1, colors[2]);
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.15;
+    ctx.strokeStyle = colors[0];
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, size + 12, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
   }
-
-  render();
 }
-
-function setSessionMode(mode) {
-  state.sessionMode = mode;
-  if (mode !== "continuous") {
-    state.sessionMinutes = Number(mode);
-    els.sessionMinutes.value = mode;
+function animate() {
+  cancelAnimationFrame(animation);
+  function frame() {
+    draw();
+    if (
+      session.running &&
+      !settings.reducedMotion &&
+      settings.view !== "dashboard" &&
+      !document.hidden
+    )
+      animation = requestAnimationFrame(frame);
   }
-
-  els.sessionButtons.forEach((button) => {
-    const active = button.dataset.session === mode;
-    button.classList.toggle("active", active);
-  });
-  syncSettings();
+  frame();
 }
-
-function setView(view) {
-  els.viewButtons.forEach((button) => {
-    const active = button.dataset.view === view;
-    button.classList.toggle("active", active);
-    button.setAttribute("aria-selected", String(active));
-  });
-
-  els.panels.forEach((panel) => {
-    panel.classList.toggle("active", panel.dataset.panel === view);
-  });
-
-  render();
+function applySettings() {
+  document.body.dataset.theme = settings.theme;
+  document.body.classList.toggle("reduced", settings.reducedMotion);
+  document.documentElement.style.setProperty(
+    "--accent",
+    palettes[settings.palette][0],
+  );
+  document
+    .querySelectorAll("[data-view]")
+    .forEach((button) =>
+      button.setAttribute(
+        "aria-pressed",
+        String(button.dataset.view === settings.view),
+      ),
+    );
+  document
+    .querySelectorAll("[data-palette]")
+    .forEach((button) =>
+      button.setAttribute(
+        "aria-pressed",
+        String(button.dataset.palette === settings.palette),
+      ),
+    );
+  document
+    .querySelectorAll("[data-session]")
+    .forEach((button) =>
+      button.setAttribute(
+        "aria-pressed",
+        String(
+          button.dataset.session ===
+            (settings.sessionMode === "continuous"
+              ? "continuous"
+              : String(settings.sessionMinutes)),
+        ),
+      ),
+    );
+  $("dashboard").hidden = settings.view !== "dashboard";
+  $("visual").hidden = settings.view === "dashboard";
+  ["inhale", "pause", "exhale"].forEach(
+    (key) => ($(key + "-value").textContent = settings[key].toFixed(1) + "s"),
+  );
+  $("minutes-value").textContent = settings.sessionMinutes + " min";
+  $("volume-value").textContent = Math.round(settings.volume * 100) + "%";
+  if (master)
+    master.gain.setTargetAtTime(
+      settings.volume * 0.65,
+      audio.currentTime,
+      0.025,
+    );
+  persist();
+  updateSession();
+  animate();
 }
-
-function previewSound() {
-  playMeditationSound(SOUND_PRESETS, state.inhaleSound, 2.4, "in");
-  window.setTimeout(() => startPauseSound(1.2), 700);
-  window.setTimeout(() => playMeditationSound(SOUND_PRESETS, state.exhaleSound, 2.4, "out"), 1500);
-}
-
-hydrateSoundSelect(els.inhaleSound, SOUND_PRESETS, state.inhaleSound);
-hydrateSoundSelect(els.exhaleSound, SOUND_PRESETS, state.exhaleSound);
-hydrateSoundSelect(els.pauseSound, PAUSE_PRESETS, state.pauseSound);
-
-[els.inhale, els.pause, els.exhale, els.sessionMinutes, els.inhaleSound, els.exhaleSound, els.pauseSound, els.soundShape, els.volume]
-  .forEach((control) => {
-    control.addEventListener("input", () => {
-      if (control === els.sessionMinutes) {
-        state.sessionMode = String(els.sessionMinutes.value);
-        els.sessionButtons.forEach((button) => button.classList.toggle("active", false));
-      }
-      syncSettings();
-    });
-  });
-
-els.sessionButtons.forEach((button) => {
-  button.addEventListener("click", () => setSessionMode(button.dataset.session));
+const bindings = {
+  inhale: "inhale",
+  pause: "pause",
+  exhale: "exhale",
+  "session-minutes": "sessionMinutes",
+  "inhale-sound": "inhaleSound",
+  "pause-sound": "pauseSound",
+  "exhale-sound": "exhaleSound",
+  volume: "volume",
+  shape: "shape",
+  playback: "playback",
+  theme: "theme",
+  "show-timer": "showTimer",
+  "timer-step": "timerStep",
+  "show-session": "showSession",
+  "reduced-motion": "reducedMotion",
+};
+["inhale", "pause", "exhale"].forEach((phase) => {
+  const select = $(phase + "-sound");
+  sounds.forEach((sound) => select.add(new Option(sound.name, sound.id)));
 });
-
-els.viewButtons.forEach((button) => {
-  button.addEventListener("click", () => setView(button.dataset.view));
-});
-
-[els.startStop, els.dashStartStop, els.waveStartStop].forEach((button) => {
-  button.addEventListener("click", () => {
-    if (state.running) {
-      stop();
-    } else {
-      start();
+Object.entries(bindings).forEach(([id, key]) => {
+  const control = $(id);
+  if (control.type === "checkbox") control.checked = settings[key];
+  else control.value = settings[key];
+  control.addEventListener("input", () => {
+    const timing = ["inhale", "pause", "exhale", "sessionMinutes"].includes(
+      key,
+    );
+    if (timing && elapsed() > 0) reset();
+    settings[key] =
+      control.type === "checkbox"
+        ? control.checked
+        : typeof defaults[key] === "number"
+          ? Number(control.value)
+          : control.value;
+    if (key === "sessionMinutes") settings.sessionMode = "timed";
+    applySettings();
+    if (key.endsWith("Sound")) {
+      stopVoices("session");
+      if (session.running) updateSession(true);
     }
   });
 });
-
-[els.reset, els.dashReset, els.waveReset].forEach((button) => {
-  button.addEventListener("click", reset);
+document.querySelectorAll("[data-view]").forEach((button) =>
+  button.addEventListener("click", () => {
+    settings.view = button.dataset.view;
+    applySettings();
+  }),
+);
+document.querySelectorAll("[data-palette]").forEach((button) =>
+  button.addEventListener("click", () => {
+    settings.palette = button.dataset.palette;
+    applySettings();
+  }),
+);
+document.querySelectorAll("[data-session]").forEach((button) =>
+  button.addEventListener("click", () => {
+    if (elapsed() > 0) reset();
+    settings.sessionMode =
+      button.dataset.session === "continuous" ? "continuous" : "timed";
+    if (settings.sessionMode === "timed")
+      settings.sessionMinutes = Number(button.dataset.session);
+    $("session-minutes").value = settings.sessionMinutes;
+    applySettings();
+  }),
+);
+document.querySelectorAll("[data-preview]").forEach((button) =>
+  button.addEventListener("click", () => {
+    if (session.running) pause();
+    stopVoices();
+    $("notice").textContent = "";
+    playSound(button.dataset.preview, 3, "preview");
+  }),
+);
+$("settings-open").addEventListener("click", () => setDrawer(true));
+$("settings-close").addEventListener("click", () => setDrawer(false));
+$("scrim").addEventListener("click", () => setDrawer(false));
+$("start-stop").addEventListener("click", () =>
+  session.running ? pause() : start(),
+);
+$("reset").addEventListener("click", reset);
+document.addEventListener("keydown", (event) => {
+  if (!$("settings").classList.contains("open")) return;
+  if (event.key === "Escape") setDrawer(false);
+  if (event.key === "Tab") {
+    const items = Array.from(
+      $("settings").querySelectorAll("button,input,select,a"),
+    ).filter((item) => !item.disabled);
+    const first = items[0],
+      last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
 });
-
-els.previewSound.addEventListener("click", previewSound);
-window.addEventListener("resize", () => render());
-
-syncSettings();
-render();
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (session.running) {
+      pause();
+      $("notice").textContent = "Session paused while the page was away.";
+    }
+    stopVoices();
+  } else {
+    updateSession();
+    animate();
+  }
+});
+window.addEventListener("pagehide", () => {
+  pause();
+  stopVoices();
+});
+window.addEventListener("resize", draw);
+applySettings();
