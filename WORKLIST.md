@@ -12,6 +12,11 @@
 - [x] Browser interruptions pause cleanly.
 - [x] Focused regression and responsive browser checks.
 - [x] Copy verified files to GitHub repository.
-- [ ] Commit, push, and verify GitHub Pages.
+- [x] Commit, push, and verify GitHub Pages.
+
+Verified on 6 November 2026: Pages deployment succeeded; the live page exposes
+the drawer, Petal view, and countdown controls. Bundled audio and icon assets
+return HTTP 200. Session/audio regression checks passed, and desktop/narrow
+browser layouts were checked with no console errors.
 
 No device-specific iPad testing is required.
