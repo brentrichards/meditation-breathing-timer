@@ -90,7 +90,7 @@ class AudioNode {
 class Audio {
   constructor() {
     this.currentTime = 0;
-    this.sampleRate = 100;
+    this.sampleRate = 44100;
     this.destination = {};
   }
   resume() {
@@ -112,7 +112,8 @@ class Audio {
     return new AudioNode();
   }
   createBuffer(_, size) {
-    return { getChannelData: () => new Float32Array(size) };
+    const data = new Float32Array(size);
+    return { getChannelData: () => data };
   }
   decodeAudioData() {
     return Promise.resolve({ duration: 8 });
@@ -216,7 +217,41 @@ async function main() {
   run("reset(); settings.reducedMotion = false");
   now = 0;
   assert.ok(run("sounds.find(s => s.id === 'stream').q") < 0.5);
-  assert.ok(run("sounds.find(s => s.id === 'stream').driftRate") < 0.1);
+  for (const id of ["stream", "breath"]) {
+    assert.equal(
+      run("sounds.find(s => s.id === " + JSON.stringify(id) + ").family"),
+      "texture",
+    );
+    const samples = run(
+      "softTextureBuffer(" + JSON.stringify(id) + ").getChannelData(0)",
+    );
+    let energy = 0,
+      highEnergy = 0,
+      previous = 0,
+      high = 0;
+    const coefficient = Math.exp((-2 * Math.PI * 2000) / 44100);
+    for (const value of samples) {
+      assert.ok(Number.isFinite(value) && Math.abs(value) <= 0.32001);
+      high = coefficient * (high + value - previous);
+      previous = value;
+      energy += value * value;
+      highEnergy += high * high;
+    }
+    assert.ok(Math.sqrt(energy / samples.length) <= 0.08501);
+    assert.ok(
+      highEnergy / energy < 0.035,
+      id + " must suppress high-frequency energy",
+    );
+    run("settings.inhaleSound = " + JSON.stringify(id));
+    const sourceCount = sources.length;
+    await run("playSound('inhale', 5)");
+    assert.equal(
+      sources.length - sourceCount,
+      1,
+      "Soft textures must not add a filter-wobble oscillator",
+    );
+    run("stopVoices()");
+  }
   assert.equal(run("locate(0).phase"), "inhale");
   assert.equal(run("locate(5).phase"), "exhale");
   run("settings.pause = 1.2");

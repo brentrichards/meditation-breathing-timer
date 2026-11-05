@@ -65,15 +65,23 @@ const sounds = [
     cutoff: 1100,
     q: 1.8,
   },
-  { id: "breath", name: "Soft air", family: "noise", cutoff: 1600, q: 0.7 },
+  {
+    id: "breath",
+    name: "Soft air",
+    family: "texture",
+    cutoff: 520,
+    q: 0.35,
+    peak: 0.22,
+    fade: 0.85,
+  },
   {
     id: "stream",
     name: "Soft flowing water",
-    family: "noise",
-    cutoff: 950,
+    family: "texture",
+    cutoff: 340,
     q: 0.35,
-    driftRate: 0.07,
-    driftDepth: 0.025,
+    peak: 0.24,
+    fade: 0.95,
   },
   {
     id: "flute",
@@ -268,6 +276,52 @@ function noiseBuffer() {
   noiseBuffers.set("pink", buffer);
   return buffer;
 }
+
+function softTextureBuffer(kind) {
+  if (noiseBuffers.has(kind)) return noiseBuffers.get(kind);
+  const rate = audio.sampleRate;
+  const length = rate * 8;
+  const overlap = Math.max(1, Math.floor(rate * 0.5));
+  const raw = new Float32Array(length + overlap);
+  const buffer = audio.createBuffer(1, length, rate);
+  const data = buffer.getChannelData(0);
+  const cutoff = kind === "stream" ? 340 : 520;
+  const low = 1 - Math.exp((-2 * Math.PI * cutoff) / rate);
+  const high = Math.exp((-2 * Math.PI * 85) / rate);
+  let previous = 0,
+    highpass = 0,
+    pole1 = 0,
+    pole2 = 0,
+    pole3 = 0;
+  // Three low-pass stages remove hiss; the high-pass removes bass rumble.
+  for (let i = 0; i < raw.length; i++) {
+    const white = Math.random() * 2 - 1;
+    highpass = high * (highpass + white - previous);
+    previous = white;
+    pole1 += low * (highpass - pole1);
+    pole2 += low * (pole1 - pole2);
+    pole3 += low * (pole2 - pole3);
+    raw[i] = pole3;
+  }
+  let energy = 0,
+    maximum = 0;
+  for (let i = 0; i < length; i++) {
+    const blend = i < overlap ? (1 - Math.cos((i / overlap) * Math.PI)) / 2 : 1;
+    const value =
+      i < overlap ? raw[length + i] * (1 - blend) + raw[i] * blend : raw[i];
+    data[i] = value;
+    energy += value * value;
+    maximum = Math.max(maximum, Math.abs(value));
+  }
+  // Keep the texture quiet and cap peaks without clipping the waveform.
+  const scale = Math.min(
+    0.085 / Math.max(0.000001, Math.sqrt(energy / length)),
+    0.32 / Math.max(0.000001, maximum),
+  );
+  for (let i = 0; i < length; i++) data[i] *= scale;
+  noiseBuffers.set(kind, buffer);
+  return buffer;
+}
 async function sampleBuffer(file) {
   if (!buffers.has(file)) {
     const promise = (
@@ -320,12 +374,22 @@ async function playSound(phase, seconds, group = "session") {
   filter.type = "lowpass";
   filter.frequency.value = sound.cutoff || 3200;
   filter.Q.value = sound.q || 0.5;
-  const peak = phase === "pause" ? 0.15 : sound.family === "noise" ? 0.65 : 0.4;
+  const peak = sound.peak
+    ? sound.peak * (phase === "pause" ? 0.5 : 1)
+    : phase === "pause"
+      ? 0.15
+      : sound.family === "noise"
+        ? 0.65
+        : 0.4;
   const attack = Math.min(
-    span * 0.2,
-    sound.family === "bell" || sound.family === "bowl" ? 0.04 : 0.35,
+    span * (sound.fade ? 0.35 : 0.2),
+    sound.fade ||
+      (sound.family === "bell" || sound.family === "bowl" ? 0.04 : 0.35),
   );
-  const release = Math.min(span * 0.22, 0.35);
+  const release = Math.min(
+    span * (sound.fade ? 0.35 : 0.22),
+    sound.fade || 0.35,
+  );
   gain.gain.setValueAtTime(0, start);
   gain.gain.linearRampToValueAtTime(peak, start + attack);
   if (phase === "pause" || settings.shape === "constant") {
@@ -345,6 +409,11 @@ async function playSound(phase, seconds, group = "session") {
   if (buffer) {
     const node = audio.createBufferSource();
     node.buffer = buffer;
+    node.loop = true;
+    source(node);
+  } else if (sound.family === "texture") {
+    const node = audio.createBufferSource();
+    node.buffer = softTextureBuffer(sound.id);
     node.loop = true;
     source(node);
   } else if (sound.family === "noise") {

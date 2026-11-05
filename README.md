@@ -55,6 +55,10 @@ joined by two treatments of a real bowl recording. Nature textures are synthesiz
 interpretations, not field recordings. See [audio credits](AUDIO-CREDITS.md).
 Press Start or Preview to unlock browser audio.
 
+Soft air and Soft flowing water use dedicated low-level textures with three
+low-pass smoothing stages, bass-rumble removal, no filter wobble, and extended
+fades. These presets are deliberately quieter than the other noise options.
+
 ## Publish
 
 Commit and push all project files, including audio/ and icons/. In GitHub Settings > Pages,
