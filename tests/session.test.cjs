@@ -80,7 +80,8 @@ class AudioNode {
   }
   connect() {}
   disconnect() {}
-  start() {
+  start(at, offset) {
+    this.startOffset = offset;
     sources.push(this);
   }
   stop(t) {
@@ -217,7 +218,7 @@ async function main() {
   run("reset(); settings.reducedMotion = false");
   now = 0;
   assert.ok(run("sounds.find(s => s.id === 'stream').q") < 0.5);
-  for (const id of ["stream", "breath"]) {
+  for (const id of ["breath"]) {
     assert.equal(
       run("sounds.find(s => s.id === " + JSON.stringify(id) + ").family"),
       "texture",
@@ -252,6 +253,20 @@ async function main() {
     );
     run("stopVoices()");
   }
+  assert.equal(run("sounds.find(s => s.id === 'stream').family"), "sample");
+  assert.ok(run("sounds.find(s => s.id === 'stream').peak") >= 0.5);
+  assert.ok(run("sounds.find(s => s.id === 'breath').peak") >= 0.5);
+  assert.ok(
+    fs.existsSync(
+      require("node:path").join(__dirname, "../audio/babbling-brook.mp3"),
+    ),
+  );
+  run("settings.inhaleSound = 'stream'");
+  await run("playSound('inhale', 5)");
+  const brookVoice = sources[sources.length - 1];
+  assert.equal(brookVoice.loop, false);
+  assert.ok(brookVoice.startOffset >= 0 && brookVoice.startOffset <= 2.9);
+  run("stopVoices()");
   assert.equal(run("locate(0).phase"), "inhale");
   assert.equal(run("locate(5).phase"), "exhale");
   run("settings.pause = 1.2");

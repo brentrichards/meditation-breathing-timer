@@ -71,17 +71,19 @@ const sounds = [
     family: "texture",
     cutoff: 520,
     q: 0.35,
-    peak: 0.22,
+    peak: 0.65,
     fade: 0.85,
   },
   {
     id: "stream",
-    name: "Soft flowing water",
-    family: "texture",
-    cutoff: 340,
+    name: "Babbling brook",
+    family: "sample",
+    file: "audio/babbling-brook.mp3",
+    randomStart: true,
+    cutoff: 2800,
     q: 0.35,
-    peak: 0.24,
-    fade: 0.95,
+    peak: 0.65,
+    fade: 0.65,
   },
   {
     id: "flute",
@@ -285,7 +287,7 @@ function softTextureBuffer(kind) {
   const raw = new Float32Array(length + overlap);
   const buffer = audio.createBuffer(1, length, rate);
   const data = buffer.getChannelData(0);
-  const cutoff = kind === "stream" ? 340 : 520;
+  const cutoff = 520;
   const low = 1 - Math.exp((-2 * Math.PI * cutoff) / rate);
   const high = Math.exp((-2 * Math.PI * 85) / rate);
   let previous = 0,
@@ -400,17 +402,21 @@ async function playSound(phase, seconds, group = "session") {
     gain.gain.linearRampToValueAtTime(peak, start + span * 0.5);
   } else gain.gain.exponentialRampToValueAtTime(peak * 0.1, end - release);
   gain.gain.linearRampToValueAtTime(0, end);
-  function source(node, target = gain) {
+  function source(node, target = gain, offset) {
     node.connect(target);
-    node.start(start);
+    if (offset === undefined) node.start(start);
+    else node.start(start, offset);
     node.stop(end + 0.02);
     voice.sources.push(node);
   }
   if (buffer) {
     const node = audio.createBufferSource();
     node.buffer = buffer;
-    node.loop = true;
-    source(node);
+    node.loop = !sound.randomStart;
+    const offset = sound.randomStart
+      ? Math.random() * Math.max(0, buffer.duration - span - 0.1)
+      : 0;
+    source(node, gain, offset);
   } else if (sound.family === "texture") {
     const node = audio.createBufferSource();
     node.buffer = softTextureBuffer(sound.id);

@@ -51,13 +51,13 @@ Choose sound throughout each breath or short cues; hold sound stays sustained.
 Volume and envelope shape are adjustable.
 
 Synthesized bowls, bell, flute, hum, drone, pulse, and air/water textures are
-joined by two treatments of a real bowl recording. Nature textures are synthesized
-interpretations, not field recordings. See [audio credits](AUDIO-CREDITS.md).
+joined by two treatments of a real bowl recording and a recorded babbling brook.
+Other nature textures are synthesized interpretations. See [audio credits](AUDIO-CREDITS.md).
 Press Start or Preview to unlock browser audio.
 
-Soft air and Soft flowing water use dedicated low-level textures with three
-low-pass smoothing stages, bass-rumble removal, no filter wobble, and extended
-fades. These presets are deliberately quieter than the other noise options.
+Soft air uses a smoothed texture with three low-pass stages, bass-rumble
+removal, no filter wobble, and extended fades. Babbling brook uses a
+level-balanced natural stream recording with different excerpts on each breath.
 
 ## Publish
 
